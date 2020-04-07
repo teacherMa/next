@@ -1,0 +1,33 @@
+JNI相关
+
+全称是JavaNativeInterface，实现Java和Native交互
+
+静态注册与动态注册：
+Java类中写一个native方法，然后用javah生成一个Java_packagename_classname的jni方法，在Java层第一次调用native方法时，会根据Java_packagename_classname去找对应的jni方法，找到之后，就保存一个方法指针，下次调用native方法时，就直接根据方法指针去找对应的jni方法了，这就是静态注册。静态注册的主要问题在于，需要用javah来生成方法，方法名特别长；第一次找方法指针时耗时比较长。
+Java类中写一个native方法，在jni代码中创建对应的jni方法，然后创建对应的结构体JNINativeMethod，结构体中包含native方法的名称、native方法的签名、和要绑定的jni方法。然后调用AndroidRuntime::registerNativeMethods，就可以进行动态绑定。
+
+数据结构转换：
+基本数据类型。Java.void->JNI.void，其他的基本数据类型就是在前面加j，比如jboolean，jint
+引用类型。Object-jobject，Class-jclass，全都是加j
+
+方法签名：
+因为java方法存在overload，所以通过方法名称无法唯一确定一个函数，必须通过方法签名。方法签名由 "(参数列表签名)返回值签名 构成，比如(Ljava/lang/Object;Ljava/lang/String;Ljava/lang/String;)V
+可以通过javap 查看方法签名
+
+JNIEnv：
+一个指向所有JNI方法的指针，只在当前线程有效，不能跨线程传递。
+
+JavaVM：
+Java虚拟机在native层的代表，可以通过attachCurrentThread获取当前线程的JNIEnv实例
+
+
+
+LeakCanary原理：
+1.监听：通过registerLifecycle的形式监听Fragment或Activity的生命周期。
+2.检测：在生命周期结束后，通过检测引用队列中是否有对应的弱引用，判断是否发生了泄漏。
+3.dump：suqare的另一个库 haha
+存在的问题：只能检测Activity和Fragment，不能检测Service。
+
+
+Fragment生命周期：
+onAttach-onCreate-onCreateView-onStart-onResume-onPause-onStop-onDestriyView-onDestroy-onDetach
