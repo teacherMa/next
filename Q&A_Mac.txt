@@ -28,6 +28,17 @@ LeakCanary原理：
 3.dump：suqare的另一个库 haha
 存在的问题：只能检测Activity和Fragment，不能检测Service。
 
+分析ANR：
+adb bugreport
+会生成一个zip，解压后找最大的文件，然后查找VM TRACES AT LAST ANR，即可定位到ANR的位置。
+
+
+动画原理：
+
+1.普通动画：Transformation类中存储了alpha、matrix等信息，动画开始后，每次刷新时调用动画的applyTransformation，动画根据时间来判断进度，从而更新Transformation中相关值，然后在draw的时候，将相应的Transformation作用于canvas。
+2.属性动画：向Choreographer注册callback来刷新，刷新的时候根据给定的初始值、最终值算出当前位置，进而算出当前的值，然后通过反射更改属性的值。
+
+
 
 Fragment生命周期：
 onAttach-onCreate-onCreateView-onStart-onResume-onPause-onStop-onDestriyView-onDestroy-onDetach
