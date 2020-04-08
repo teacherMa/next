@@ -144,7 +144,9 @@ LeakCanary原理：
 3.dump：suqare的另一个库 haha
 存在的问题：只能检测Activity和Fragment，不能检测Service。
 
-响应时间
+响应时间:
+1.可以通过AS自带工具。
+2.BlockCanary：原理是在主线程的Looper分发消息前后打日志，然后dump堆栈。有缺陷，无法精准定位哪里卡顿。
 
 ANR:
 adb bugreport 会生成一个zip，解压后找最大的文件，然后查找VM TRACES AT LAST ANR，即可定位到ANR的位置。
@@ -208,3 +210,6 @@ webview
 
 
 图片加载
+
+
+热修复
