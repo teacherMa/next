@@ -91,9 +91,29 @@ Dalvik执行的是.dex代表的Dalvik字节码。
 ART是在Dalvik基础上进行的改进，应用第一次安装时会将部分字节码转化为机器码，之后再执行，就不需要再次转化，提升了速度。
 
 
-webview
 
-组件化
+JNI相关
+
+全称是JavaNativeInterface，实现Java和Native交互
+
+静态注册与动态注册：
+Java类中写一个native方法，然后用javah生成一个Java_packagename_classname的jni方法，在Java层第一次调用native方法时，会根据Java_packagename_classname去找对应的jni方法，找到之后，就保存一个方法指针，下次调用native方法时，就直接根据方法指针去找对应的jni方法了，这就是静态注册。静态注册的主要问题在于，需要用javah来生成方法，方法名特别长；第一次找方法指针时耗时比较长。
+Java类中写一个native方法，在jni代码中创建对应的jni方法，然后创建对应的结构体JNINativeMethod，结构体中包含native方法的名称、native方法的签名、和要绑定的jni方法。然后调用AndroidRuntime::registerNativeMethods，就可以进行动态绑定。
+
+数据结构转换：
+基本数据类型。Java.void->JNI.void，其他的基本数据类型就是在前面加j，比如jboolean，jint
+引用类型。Object-jobject，Class-jclass，全都是加j
+
+方法签名：
+因为java方法存在overload，所以通过方法名称无法唯一确定一个函数，必须通过方法签名。方法签名由 "(参数列表签名)返回值签名 构成，比如(Ljava/lang/Object;Ljava/lang/String;Ljava/lang/String;)V
+可以通过javap 查看方法签名
+
+JNIEnv：
+一个指向所有JNI方法的指针，只在当前线程有效，不能跨线程传递。
+
+JavaVM：
+Java虚拟机在native层的代表，可以通过attachCurrentThread获取当前线程的JNIEnv实例
+
 
 触摸事件
 
@@ -114,10 +134,21 @@ onLayout：没啥好说的。
 onDraw：绘制。高级动效都基于Paint的一些模式的设置和Path的使用。
 
 
-图片加载
 
+性能优化：
 
-性能优化：内存工具，响应时间，ANR
+内存工具:
+LeakCanary原理：
+1.监听：通过registerLifecycle的形式监听Fragment或Activity的生命周期。
+2.检测：在生命周期结束后，通过检测引用队列中是否有对应的弱引用，判断是否发生了泄漏。
+3.dump：suqare的另一个库 haha
+存在的问题：只能检测Activity和Fragment，不能检测Service。
+
+响应时间
+
+ANR:
+adb bugreport 会生成一个zip，解压后找最大的文件，然后查找VM TRACES AT LAST ANR，即可定位到ANR的位置。
+
 
 
 视图层级
@@ -139,12 +170,41 @@ ViewGroup.addView和WindowManager.addView区别很大。
 ViewRootImpl都有一个W对象，在ViewRootImpl中，setView会调用Session.addToDisplay方法将W对象当作Window添加到服务端，addToDisplay方法最终会调用WindowManagerService的addWindow方法。
 添加成功后，ViewRootImpl就会调用setFrame方法开始绘制自己。
 
+
+
+动画原理：
+
+1.普通动画：Transformation类中存储了alpha、matrix等信息，动画开始后，每次刷新时调用动画的applyTransformation，动画根据时间来判断进度，从而更新Transformation中相关值，然后在draw的时候，将相应的Transformation作用于canvas。
+2.属性动画：向Choreographer注册callback来刷新，刷新的时候根据给定的初始值、最终值算出当前位置，进而算出当前的值，然后通过反射更改属性的值。
+
 Choreographer
+
+
+
 
 消息机制：
 Handler、Message、MessageQueue、ThreadLocal、HandlerThread、IdleHandler
+
+
+
+
 
 检测是否被Root：
 1.检测data/data目录的权限，正常手机该目录只有读权限。
 2.检测是否已经安装superSu
 3.执行命令行su指令：Runtime.getRuntime().exec("su")。
+
+
+Fragment生命周期：
+onAttach-onCreate-onCreateView-onStart-onResume-onPause-onStop-onDestriyView-onDestroy-onDetach
+
+
+webview
+
+
+
+组件化
+
+
+
+图片加载
