@@ -50,7 +50,7 @@ Q：介绍一下Java中的异常机制
 A：
 Throwable的两个子类Exception和Error，二者都是可捕获的；Exception表示一种在程序级别应该被处理的错误，Error表示系统级别的错误。
 直接继承自Exception的称为受检异常，必须在代码中处理；继承自RuntimException的称为非受检异常，不需要在代码中处理。
-try-with-resource 原理；addSuppressed
+try-with-resource 原理：语法糖，编译器帮忙处理异常与资源关闭。
 
 扩展：
 1.为什么要设计异常？通过方法的返回值也可以告诉调用者，某个方法或者类运转是否正常。
@@ -61,6 +61,12 @@ try-with-resource 原理；addSuppressed
 非受检异常通常是由调用者自己引起的错误，比如除了0，或者传递了空的引用；
 受检异常通常表示底层或系统层面的错误，比如IO异常，网络异常；在程序设计时，可以看作设计者希望传递给调用者的信息：即使你使用正常，这里也可能产生错误，你必须处理它。
 
+3.DefaultUncaughtExceptionHandler
+需要注意的是，线程有一个字段是DefaultUncaughtExceptionHandler，也有一个静态变量是DefaultUncaughtExceptionHandler，二者都可以设置，后者用的比较多，一般通过Thread.setDefaultUncaughtExceptionHandler来设置，达到全局异常处理的目的。
+原理：线程在创建时，会被归到一个线程组，发生异常时，Runtime会先调用该线程的实例UncaughtExceptionHandler方法，如果没有实例方法，就会调用线程组的相关方法，线程组会把异常当作参数来调用线程相关的静态类的方法。
+
+4.如果想要在捕获一个异常后抛出另一个异常，并且希望把原始异常的信息保存下来，可以在异常的构造器中传入一个 cause（因由）对象作为参数。
+这个 cause 就用来表示原始异常，这样通过把原始异常传递给新的异常，使得即使在当前位置创建并抛出了新的异常，也能通过这个异常链追踪到异常最初发生的位置。
 
 
 Q：介绍一下Java中的泛型
@@ -89,7 +95,10 @@ Box<Apple> 和 Box<Fruits> 不存在继承关系。
 
 4.
 泛型中的多态：
-桥接模式
+桥接模式与强制类型转化。
+
+5.泛型擦除带来的问题
+无法实例化泛型对象，无法创建泛型数组，无法对泛型类使用instanceof关键字，必须使用强制类型转化。
 
 
 Q：Object的方法有哪些？
