@@ -178,9 +178,12 @@ ViewRootImpl都有一个W对象，在ViewRootImpl中，setView会调用Session.a
 
 1.普通动画：Transformation类中存储了alpha、matrix等信息，动画开始后，每次刷新时调用动画的applyTransformation，动画根据时间来判断进度，从而更新Transformation中相关值，然后在draw的时候，将相应的Transformation作用于canvas。
 2.属性动画：向Choreographer注册callback来刷新，刷新的时候根据给定的初始值、最终值算出当前位置，进而算出当前的值，然后通过反射更改属性的值。
+3.帧动画：将资源解析成很多个Bitmap，然后向Choreographer注册callback来刷新，每次刷新的时候，根据当前时间draw出来当前要使用的Bitmap。因为一开始会将所有Bitmap都解析出来，所以有可能存在内存问题。
 
-Choreographer
-
+Choreographer：
+管理视图刷新、提供一种监听处理底层V-SYNC信号的方法的类。有四种类别：Animation、Input、Transversal、Commit。
+实际上每次更新视图，都是在ViewRootImpl中向ChoreoGrapher注册callback，然后等V-SYNC信号来了才能刷新（这就属于Transversal类型）。
+还可以通过向Choreographer注册监听来检测是否有掉帧的现象。
 
 
 
@@ -212,4 +215,8 @@ webview
 图片加载
 
 
-热修复
+
+热修复：
+热修复从原理上来说可以分两种，一种是native层面的，一种是Java层面的。
+native层面的一般是替换JVM中方法的指针，从而达到hook的目的；
+Java层面的是利用多dex的特性，Hook了ClassLoader.pathList.dexElements[]。因为ClassLoader的findClass是通过遍历dexElements[]中的dex来寻找类的，越靠前的Dex优先被系统使用。
