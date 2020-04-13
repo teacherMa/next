@@ -212,7 +212,14 @@ webview
 
 
 
-图片加载
+屏幕适配
+
+
+
+图片加载：
+1.Bitmap嗅探：Decode时可以传一个option，只嗅探Bitmap的宽度和高度，再根据Target的宽度和高度算出scale（必须为1或者2的整数次幂），就可以减少Bitmap的大小。
+2.Bitmap复用：Bitmap.createBitmap时可以传一个Origin的Bitmap，或者在BitmapFactory的Option中指定inBitmap，4.4以上复用Bitmap不再要求被复用的Bitmap与即将被加载的Bitmap宽高必须一致，只要求前者大于后者即可。
+3.减少Bitmap的内存消耗：Config中颜色的选择，长图加载时使用BitmapRegionDecdoer
 
 
 
