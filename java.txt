@@ -121,11 +121,18 @@ String的内部实现。
 String是不可变的，所以直接用+拼接字符串时会生成很多对象，用StringBuilder 效率更高。StringBuilder 内部有一个字节数组，append的时候就是往数组里添加元素，需要的时候会扩容。StringBuffer 和StringBuilder原理一致，但是加了Sync关键字，线程安全。
 
 
-Q：HashMap、HashTable、HashSet
+Q：String为什么要设计成不可变的？
+A：在性能方面：1.String对象可以缓存hashCode；2.String对象可以使用常量池来优化
+在安全方面：String用的太多了，如果传一个String作为参数调用某个方法，然后又把String改了，就会造成不可预知的错误。虽然方法内部可以通过拷贝入参来防范，但是为什么不设计成不可变的呢。
+
+
+Q：HashMap、HashTable、HashSet、LinkedHashMap
 A：HashMap继承自Map，HashTable继承自Dictionary，HashSet继承自Set；
 HashMap和HashTable存放K-V对，HashSet存放元素；
 HashMap线程不安全，允许key和value为Null，HashTable线程安全，不允许Key和value为Null；
 HashMap会基于hashCode重新计算Hash，HashTable直接用hashCode的返回值。
+LinkedHashMap继承自HashMap，内部的LinkedHashMapEntry继承自HashMap的Node，并添加了before和after两个元素。LinkedHashMap重写了newNode、afterNodeAccess、afterNodeInsertion、afterNodeRemoval三个方法。其中newNode方法保证新添加的元素能挂载到双向链表中。
+HashMap负责管理Node中的next元素，维护散列表的性质；而LinkedHashMap负责管理before和after，维护双向链表的性质。需要注意的是，最新的元素是在双向链表的尾部。
 
 
 

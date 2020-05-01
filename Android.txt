@@ -39,8 +39,8 @@ IBinder.transact跨进程传递到service后，service的Binder.onTransact方法
 
 AIDL中的in out 与 inout
 为了表示简单一点，将一个方法调用的发起端称为client，实际被调用端称为service。
-in表示数据从client流向service，用in修饰的数据需要实现Parcelable，在方法调用的过程中，会被调用writeToParcel和CREATOR.createFromParcel。
-out表示数据从service流向client，用out修饰的数据必须有一个名为readFromParcel的public方法。
+in表示数据从client流向service，用in修饰的数据需要实现Parcelable，在方法调用的过程中，会被调用writeToParcel和CREATOR.createFromParcel。用in修饰的对象，会在client端被序列化然后跨进程传到server端。
+out表示数据从service流向client，用out修饰的数据必须有一个名为readFromParcel的public方法。用out修饰的对象，server端被调用相关方法时，会生成一个新的对象，当作方法参数，方法调用结束后，将新对象写入reply中，跨进程传递给client端，client端再从reply中读数据，更新client端调用接口时传递的对象。所以说数据是从server端流到client端。
 inout表示数据先从client流向service，再从service流向client。inout需要实现Parcelable接口和必须有一个名为readFromParcel的public方法。
 基本数据类型默认且强制为in。
 
@@ -57,9 +57,10 @@ Activity启动流程
 
 通过startActivity启动，初始的准备工作主要是ActivityStack，ActivityStackSupervisor，之后会跨进程调用ActivityThread中的方法。
 几个关键点：
+如果Activity依附的进程不存在，Zygote进程会fork自己创建一个进程，用作Application的进程。
 Instrumentation类：负责Application、Activity的创建，以及调用相应的生命周期方法。
-启动activity之前需要创建Application：创建context-attachContext-onCreate
-ApplicationThread.handleLaunchActivity：先调用Instrumentation创建activity->为activity设置主题等内容->Activity.attach->Activity.onCreate->handleResumeActivity。
+启动activity之前需要创建Application：创建context-attachContext-onCreate。应用的Application是由PathClassLoader加载的。
+ApplicationThread.handleLaunchActivity：先调用Instrumentation创建activity（activity的类加载器也是PathClassLoader）->为activity设置主题等内容->Activity.attach->Activity.onCreate->handleResumeActivity。
 
 Activity.attach：PhoneWindow在此初始化，WindowManager在此初始化。
 
@@ -84,6 +85,8 @@ onResume与onPause：Activity是否在前台。
 
 弹Dialog：不会走生命周期。
 切前后台：走stop和start。
+
+A启动B：A.onPause B.onCreate B.onStart B.onResume (视情况决定是否调用A.onStop)。统计页面跳转时间：为主线程Looper设置print，即可统计Activity状态切换的耗时，如果要统计Fragment，FragmentManager有一个Debug开关，打开即可看到各种状态切换的日志；再在onResume中post一个Runnable出去或者添加一个IdleHandler即可。
 
 JVM、ART、与Dalvik：
 JVM执行的是.class代表的java字节码。
@@ -176,8 +179,8 @@ ViewRootImpl都有一个W对象，在ViewRootImpl中，setView会调用Session.a
 
 动画原理：
 
-1.普通动画：Transformation类中存储了alpha、matrix等信息，动画开始后，每次刷新时调用动画的applyTransformation，动画根据时间来判断进度，从而更新Transformation中相关值，然后在draw的时候，将相应的Transformation作用于canvas。
-2.属性动画：向Choreographer注册callback来刷新，刷新的时候根据给定的初始值、最终值算出当前位置，进而算出当前的值，然后通过反射更改属性的值。
+1.普通动画：Transformation类中存储了alpha、matrix等信息，动画开始后，每次刷新时调用动画的applyTransformation，动画根据时间来判断进度，从而更新Transformation中相关值，然后在draw的时候，将相应的Transformation作用于canvas。（相似的还有View.scrollTo，这个方法最终会影响draw时canvas的translate）。
+2.属性动画：向Choreographer注册callback来刷新，刷新的时候根据动画开始的时间和当前时间，结合动画的duration与repeat算出fraction，再利用插值器算出插值后的fraction，再交给PropertyValueHodler算出属性相应的值，最后再通过反射来更改相应的值。属性动画可以通过setCurrentFraction来改变动画的进度。属性动画不会触发重新布局和测量，因为它改的是RenderNode的属性，即只改了显示的位置；同时在触摸事件中，会计算被属性动画更改了的位置，保证能够响应触摸事件。
 3.帧动画：将资源解析成很多个Bitmap，然后向Choreographer注册callback来刷新，每次刷新的时候，根据当前时间draw出来当前要使用的Bitmap。因为一开始会将所有Bitmap都解析出来，所以有可能存在内存问题。
 
 Choreographer：
@@ -189,7 +192,10 @@ Choreographer：
 
 消息机制：
 Handler、Message、MessageQueue、ThreadLocal、HandlerThread、IdleHandler
-
+同步屏障：插入一个同步屏障后，当处理到同步屏障时，会优先处理异步消息。
+退出Looper：调用Looper.quit方法，该方法会调用MessageQueue.quit方法。默认Looper都是可以退出的，但是主线程的Looper是不允许退出的。是否允许退出由在Looper构造MessageQueue的时候传的quitAllow参数决定。
+IdleHandler：每次调用onNext时，如果取不到消息，会在休眠之前处理IdleHandler。
+MessageQueue的休眠：nativePollOnce，0表示不休眠，-1 表示一直休眠， 其他>0的值表示休眠一段时间后唤醒。
 
 
 Android打包流程：
@@ -210,14 +216,13 @@ Android打包流程：
 3.利用keystore生成的私钥，对CERT.SF进行加密，得到加密后的结果。将加密后的结果与公钥信息一起写入CERT.RSA文件。
 在Java中通过PackageManager获取到的Signature其实是CERT.RAS文件的摘要。
 APK安装时，会先验证MANIFEST.MF中的内容是否能和APK的文件摘要对上，再验证CERT.SF中的内容是否能和MANIFEST.MF的摘要对上，再利用公钥解密加密后的串，验证能否与CERT.SF中的内容对上。其中任何一个环节对不上，都会导致APK安装失败，而一个公钥必然只能解密对应的私钥加密后的信息，这样就保证了如果APK文件被修改了，必须重新签名才能安装。
-
 V1签名有一些问题，比如对每个文件都计算摘要非常耗时；META-INF文件夹不参与摘要的计算，本身是个BUG般的存在；摘要只关心每个文件本身，不关注文件之间的关系。
-
 
 再说V2签名（Android N开始）
 1.V2签名将APK的ZIP文件分为四个部分，数据区、签名块、中央目录、中央目录结束区。
 2.V2签名不再计算某个文件的摘要，而是将整个APK按照1M为单位分为多个块，计算每个块的摘要，再计算所有块摘要的摘要。再将摘要和签名等信息放入签名块。
 3.因为V2签名关注的是整个ZIP文件，所以不能等签名之后再进行对齐，需要在签名时就进行对齐。
+
 
 
 检测是否被Root：
@@ -230,9 +235,6 @@ Fragment生命周期：
 onAttach-onCreate-onCreateView-onStart-onResume-onPause-onStop-onDestriyView-onDestroy-onDetach
 
 
-webview
-
-
 
 组件化：
 原理是通过反射加载组件包里的类。需要注意的问题有以下几点：
@@ -241,14 +243,37 @@ webview
 3.代码隔离。应该尽量少的依赖其他组件或者基础组件。
 
 
-屏幕适配
 
+Android新特性：
+
+7.0
+1.低电量模式。低电量模式下，系统会限制网络访问，降低CPU活跃度。
+2.共享文件。7.0之前可以通过file://的uri共享文件，从7.0开始需要使用FileProvider
+
+8.0
+1.后台执行限制。后台Service在应用不在前台后的一段时间内，会被kill。解决方法：可以提升优先级或者使用Job。
+2.前台Service。startForegroundService必须在5s内调用startForeground，否则会报错。
+3.广播的限制。应用在Manifest文件中无法注册没有权限限制的隐式广播。
+4.应用在后台时，会降低接收位置变化，wifi变化广播的频率。
+5.NotificationChanle。
+
+9.0
+1.反射私有API的限制。可以通过反射调用反射API
+
+10.0
+1.定位变成了可以仅在前台运行时才有的权限。
+2.无法获取实际的Mac地址。
+3.对IMEI的访问需要额外权限。
+4.扫描wifi需要精确定位权限。
+5.访问共享文件需要通过MediaStore。
 
 
 图片加载：
 1.Bitmap嗅探：Decode时可以传一个option，只嗅探Bitmap的宽度和高度，再根据Target的宽度和高度算出scale（必须为1或者2的整数次幂），就可以减少Bitmap的大小。
 2.Bitmap复用：Bitmap.createBitmap时可以传一个Origin的Bitmap，或者在BitmapFactory的Option中指定inBitmap，4.4以上复用Bitmap不再要求被复用的Bitmap与即将被加载的Bitmap宽高必须一致，只要求前者大于后者即可。
-3.减少Bitmap的内存消耗：Config中颜色的选择，长图加载时使用BitmapRegionDecdoer
+3.减少Bitmap的内存消耗：Config中颜色的选择，长图加载时使用BitmapRegionDecdoer。
+4.BitmapDrawable的复用机制：对同一个资源多次调用getResource().getDrawable()获取BitmapDrawable时，ResourceImpl层因为缓存，在theme和density相同的情况下，默认使用同一个BitmapState对象来构造BitmapDrawable。因为BitmapState就包含了Bitmap对象，所以默认使用同一个Bitmap对象。可以通过mutate()方法使不同的BitmapDrawable使用不同的BitmapState对象，但是Bitmap还是同一个，具体可以参考BitmapState的构造方法。
+5.Bitmap着色：可以为BitmapDrawable设置tint，即可通过同一张图片获取不同颜色的Bitmap。原理是在绘制Bitmap时，为paint设置了colorFilter。
 
 
 
@@ -256,3 +281,29 @@ webview
 热修复从原理上来说可以分两种，一种是native层面的，一种是Java层面的。
 native层面的一般是替换JVM中方法的指针，从而达到hook的目的；
 Java层面的是利用多dex的特性，Hook了ClassLoader.pathList.dexElements[]。因为ClassLoader的findClass是通过遍历dexElements[]中的dex来寻找类的，越靠前的Dex优先被系统使用。
+
+
+
+
+序列化与反序列化
+
+
+
+
+屏幕适配
+不同屏幕分辨率存在差异，如果通过像素来指定元素的大小，在不同分辨率的屏幕上，显示会效果不一致，所以需要屏幕适配。几个关键点：
+0.Pixel。像素，屏幕显示的基本单位。
+1.DPI。Dot Per Inch，意思是每英寸的像素数量。计算原理是（widthPixel^2 + heightPixel^2)^(1/2) / 对角线长度。从这个计算公式可以看到，即使是分辨率相同的屏幕，其物理尺寸不相同的情况下，DPI是不同的。
+2.DP。DP又称为DIP（Device Independent Pixel），意思是与设备无关的像素。由DP转化为Pixel的公式（android.util.DisplayMetrics#setToDefaults）为：dp * （Device's DPI / Default DPI）。
+通过上述公式不难发现，在分辨率相同，物理尺寸不同的屏幕上，相同的DP计算出来的Pixel是不同的；在分辨率不同，物理尺寸相同的情况下，相同DP计算出来的Pixel不同，但是保留了比例关系，最终显示在屏幕上时，显示效果是相同的。
+
+通过上述第二点可以看到，Google在引入DP这个概念时，引入了屏幕尺寸相关的参数，DP只能覆盖相同物理大小的屏幕的适配，在分辨率相同但是物理大小不同的屏幕上，是无法保证显示效果相同的。
+适配的最终目标，是在不同分辨率、不同物理尺寸的机型上展示相同的UI。
+再回过头来看最原始的通过像素来指定元素大小的适配手段，这种方法可以排除屏幕尺寸的影响，我们再这个基础上再进一步，以某个最低分辨率为标准，在这个手机上是多少像素，就写多少dp，然后获取当前手机的分辨率，比上最低分辨率得到一个比值，再将DisplayMetrics中的density通过反射改为这个值即可。
+
+关于Drawable的适配：
+目的是在不同分辨率的手机上提供不同分辨率的图片资源，避免图片分辨率过大浪费内存，或者分辨率过低影响展示效果。
+drawable中的图片最终显示在屏幕上的大小可由如下公式计算： originSize * deviceDensity / targetDensity。其中targetDensity是由图片所在的drawable目录决定的，xhdpi是320，xxhdpi是480，xxxhdpi是720。系统会从和手机本身DPI最接近的drawable文件夹中选择图片，如果只有一个drawable文件夹有图片，就只能选这个了。
+
+
+webview
