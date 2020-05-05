@@ -44,6 +44,9 @@ out表示数据从service流向client，用out修饰的数据必须有一个名�
 inout表示数据先从client流向service，再从service流向client。inout需要实现Parcelable接口和必须有一个名为readFromParcel的public方法。
 基本数据类型默认且强制为in。
 
+AIDL中的oneway
+用oneway修饰的方法发起调用后会立即结束，不会阻塞；oneway修饰的方法不能拥有out参数；oneway修饰的方法生成的代码没有reply参数。
+
 Binder通信是同步通信。
 虽然Binder通信时，client与service是在不同的线程中，但是二者是同步调用。通过查看aidl生成的java代码，可以知道client发起调用请求后，会在拿到service处理结果后再进行下一步的操作。
 
@@ -127,6 +130,8 @@ View.dispatchTouchEvent：先交给TouchListener处理，如果TouchListener返�
 ViewGroup.dispatchTouchEvent：是否拦截触摸不让其向下传递。子View可以通过requestDisallowInterceptTouchEvent设置flag，不让父View拦截触摸事件。这个flag会一直向上传递；这个flag对DOWN事件无效，因为ViewGroup会在DOWN事件时重置flag。
 
 如果没人处理触摸事件，最终处理触摸事件的是Activity.onTouchEvent。
+
+ACTION_CANCEL：在一次完整的触摸过程中，子View处理了之前的触摸事件，但是后续的触摸事件被父View拦截了，子View就会收到ACTION_CANCEL，ACTION_CANCEL一般当作ACTION_UP处理。
 
 
 
@@ -258,14 +263,19 @@ Android新特性：
 5.NotificationChanle。
 
 9.0
-1.反射私有API的限制。可以通过反射调用反射API
+1.反射私有API的限制。可以通过反射调用反射API。
+2.访问通话记录和电话号码的权限从PHONE_STATE移动到READ_CALL_LOG权限组。
+3.非Activity环境启动Activity需要在Intent中加入FLAG_ACTIVITY_NEW_TASK标志位。
+4.前台服务需要在Manifest中声明FOREGROUND_SERVICE权限。
+
 
 10.0
 1.定位变成了可以仅在前台运行时才有的权限。
 2.无法获取实际的Mac地址。
 3.对IMEI的访问需要额外权限。
 4.扫描wifi需要精确定位权限。
-5.访问共享文件需要通过MediaStore。
+5.访问应用间共享文件需要通过MediaStore。
+6.手势导航。
 
 
 图片加载：
@@ -282,6 +292,7 @@ Android新特性：
 native层面的一般是替换JVM中方法的指针，从而达到hook的目的；
 Java层面的是利用多dex的特性，Hook了ClassLoader.pathList.dexElements[]。因为ClassLoader的findClass是通过遍历dexElements[]中的dex来寻找类的，越靠前的Dex优先被系统使用。
 
+Android中的类加载器：BaseDexClassLoader：基础类加载器。PathClassLoader-对BaseDexClassLoader的封装，加载系统apk；DexClassLoader：对BaseDexClassLoader的封装，从dex或者jar中加载类。
 
 
 
